@@ -27,8 +27,10 @@
 use foundations::telemetry::log;
 use std::borrow::Cow;
 use std::fs::File;
+use std::sync::Arc;
 use std::time::Duration;
 
+use crate::quic::ConnectionHook;
 use crate::result::QuicResult;
 use crate::settings::CertificateKind;
 use crate::settings::ConnectionParams;
@@ -53,6 +55,7 @@ pub(crate) struct Config {
     pub handshake_timeout: Option<Duration>,
     pub has_ippktinfo: bool,
     pub has_ipv6pktinfo: bool,
+    pub connection_hook: Option<Arc<dyn ConnectionHook + Send + Sync + 'static>>,
 }
 
 impl AsMut<quiche::Config> for Config {
@@ -87,6 +90,8 @@ impl Config {
             ..
         } = socket_capabilities;
 
+        let connection_hook = params.hooks.connection_hook.clone();
+
         #[cfg(feature = "gcongestion")]
         let pacing_offload = quic_settings.enable_pacing && pacing_offload;
 
@@ -104,6 +109,7 @@ impl Config {
             handshake_timeout: quic_settings.handshake_timeout,
             has_ippktinfo,
             has_ipv6pktinfo,
+            connection_hook,
         })
     }
 }

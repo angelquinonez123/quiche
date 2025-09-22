@@ -52,6 +52,8 @@ use foundations::telemetry::metrics::TimeHistogram;
 use libc::sockaddr_in;
 #[cfg(target_os = "linux")]
 use libc::sockaddr_in6;
+use nix::sys::socket::CmsgIterator;
+use nix::sys::socket::ControlMessageOwned;
 use quiche::ConnectionId;
 use quiche::Header;
 use quiche::MAX_CONN_ID_LEN;
@@ -107,6 +109,8 @@ struct PollRecvData {
     dst_addr_override: Option<SocketAddr>,
     rx_time: Option<SystemTime>,
     gro: Option<u16>,
+    #[cfg(target_os = "linux")]
+    cmsgs: Vec<ControlMessageOwned>,
 }
 
 /// A message to the listener notifiying a mapping for a connection should be
@@ -192,12 +196,12 @@ where
                 #[cfg(target_os = "linux")]
                 udp_drop_count: 0,
                 #[cfg(target_os = "linux")]
-                // Specify CMSG space for GRO, timestamp, drop count, IP_RECVORIGDSTADDR, and
-                // IPV6_RECVORIGDSTADDR. Even if they're not all currently used, the cmsg buffer
-                // may have been configured by a previous version of Tokio-Quiche with the socket
-                // re-used on graceful restart. As such, this vector should _only grow_, and care
-                // should be taken when adding new cmsgs.
-                reusable_cmsg_space: nix::cmsg_space!(u32, nix::sys::time::TimeSpec, u16, sockaddr_in, sockaddr_in6),
+                // Specify CMSG space for GRO, timestamp, drop count, IP_RECVORIGDSTADDR,
+                // IPV6_RECVORIGDSTADDR, and SO_MARK. Even if they're not all currently used, the
+                // cmsg buffer may have been configured by a previous version of Tokio-Quiche with
+                // the socket re-used on graceful restart. As such, this vector should _only grow_,
+                // and care should be taken when adding new cmsgs.
+                reusable_cmsg_space: nix::cmsg_space!(u32, nix::sys::time::TimeSpec, u16, sockaddr_in, sockaddr_in6, u32),
                 config,
 
                 current_buf: BufFactory::get_max_buf(),
@@ -387,6 +391,7 @@ where
             rx_time: None,
             gro: None,
             dst_addr_override: None,
+            cmsgs: vec![],
         }))
     }
 
@@ -414,6 +419,7 @@ where
             };
 
             self.reusable_cmsg_space.clear();
+            let cmsg_capacity = self.reusable_cmsg_space.capacity();
 
             loop {
                 let iov_s = &mut [io::IoSliceMut::new(&mut self.current_buf)];
@@ -451,6 +457,7 @@ where
                         let mut rx_time = None;
                         let mut gro = None;
                         let mut dst_addr_override = None;
+                        let mut cmsgs = Vec::with_capacity(cmsg_capacity);
 
                         for cmsg in r.cmsgs() {
                             match cmsg {
@@ -533,6 +540,8 @@ where
                                     );
                                 },
                             };
+
+                            cmsgs.push(cmsg);
                         }
 
                         return Poll::Ready(Ok(PollRecvData {
@@ -541,6 +550,7 @@ where
                             dst_addr_override,
                             rx_time,
                             gro,
+                            cmsgs,
                         }));
                     },
                     Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
@@ -635,6 +645,9 @@ where
                 });
             }
 
+            // need to get the cmsg on the first recvmsg only
+            // TODO: how can we get cmsgs without copying them all on every
+            // packet?
             match self.poll_recv_and_rx_time(cx) {
                 Poll::Ready(Ok(PollRecvData {
                     bytes,
@@ -642,6 +655,7 @@ where
                     dst_addr_override,
                     rx_time,
                     gro,
+                    cmsgs,
                 })) => {
                     let mut buf = std::mem::replace(
                         &mut self.current_buf,
@@ -662,6 +676,7 @@ where
                         buf,
                         rx_time,
                         gro,
+                        cmsgs: Some(cmsgs),
                     });
 
                     if let Err(e) = res {

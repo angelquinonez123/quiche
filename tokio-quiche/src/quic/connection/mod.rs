@@ -43,6 +43,8 @@ use datagram_socket::SocketStats;
 use foundations::telemetry::log;
 use futures::future::BoxFuture;
 use futures::Future;
+use nix::sys::socket::CmsgIterator;
+use nix::sys::socket::ControlMessageOwned;
 use quiche::ConnectionId;
 use std::fmt;
 use std::io;
@@ -197,6 +199,14 @@ pub struct Incoming {
     /// If set, then `buf` is a GRO buffer containing multiple packets.
     /// Each individual packet has a size of `gso` (except for the last one).
     pub gro: Option<u16>,
+    /// Ancillary data received from the socket.
+    ///
+    /// # Note
+    ///
+    /// This will always be `None` after the connection has been spawned. Data
+    /// is processed before spawning.
+    #[cfg(target_os = "linux")]
+    pub cmsgs: Option<Vec<ControlMessageOwned>>,
 }
 
 /// A QUIC connection that has not performed a handshake yet.
@@ -317,6 +327,7 @@ where
             stats: Arc::clone(&self.stats),
             scid: self.params.scid,
         };
+        println!("is some: {}", self.params.initial_pkt.is_some());
         let context = ConnectionStageContext {
             in_pkt: self.params.initial_pkt,
             incoming_pkt_receiver: self.incoming_ev_receiver,
@@ -376,6 +387,7 @@ where
         self, app: A,
     ) -> io::Result<(QuicConnection, Running<Arc<Tx>, M, A>)> {
         let task_metrics = self.params.metrics.clone();
+        println!("calling from handshake");
         let (conn, handshake_fut) = Self::handshake_fut(self, app);
 
         let handshake_handle = crate::metrics::tokio_task::spawn(
@@ -430,13 +442,15 @@ where
     /// [`InitialQuicConnection::resume`] into a single call.
     pub fn start<A: ApplicationOverQuic>(self, app: A) -> QuicConnection {
         let task_metrics = self.params.metrics.clone();
+        println!("carglling from start");
         let (conn, handshake_fut) = Self::handshake_fut(self, app);
 
         let fut = async move {
             match handshake_fut.await {
                 Ok(running) => Self::resume(running),
-                Err(e) =>
-                    log::error!("QUIC handshake failed in IQC::start"; "error" => e),
+                Err(e) => {
+                    log::error!("QUIC handshake failed in IQC::start"; "error" => e)
+                },
             }
         };
 

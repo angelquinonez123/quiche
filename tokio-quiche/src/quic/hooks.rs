@@ -25,7 +25,12 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 use crate::settings::TlsCertificatePaths;
+use crate::QuicResult;
 use boring::ssl::SslContextBuilder;
+
+#[cfg(target_os = "linux")]
+use nix::sys::socket::CmsgIterator;
+use nix::sys::socket::ControlMessageOwned;
 
 /// A set of hooks executed at the level of a [quiche::Connection].
 pub trait ConnectionHook {
@@ -41,4 +46,15 @@ pub trait ConnectionHook {
     fn create_custom_ssl_context_builder(
         &self, settings: TlsCertificatePaths<'_>,
     ) -> Option<SslContextBuilder>;
+
+    /// Allows the implementor to inspect control messages received on the first
+    /// packet(s) returned from `recvmsg`.
+    ///
+    /// If an `Error` is returned, the connection will be closed.
+    #[cfg(target_os = "linux")]
+    fn inspect_cmsgs_on_first_recvmsg(
+        &self, _cmsgs: Option<Vec<ControlMessageOwned>>,
+    ) -> QuicResult<()> {
+        Ok(())
+    }
 }

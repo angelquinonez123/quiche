@@ -730,6 +730,10 @@ where
         })
         .await;
 
+        if let Some(cmsgs) = ctx.in_pkt.as_mut() {
+            println!("cmsgs: {:?}", cmsgs.cmsgs.take());
+        }
+
         let mut work_loop_result = self.work_loop(&mut qconn, &mut ctx).await;
         if work_loop_result.is_ok() && qconn.is_closed() {
             work_loop_result = Err(HandshakeError::ConnectionClosed.into());
