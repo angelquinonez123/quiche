@@ -1,0 +1,175 @@
+1 items
+0
+:
+{
+4 items
+"name":"calls"
+"type":"Vec<mainnet_runtime:RuntimeCall>"
+"type_name":"Vec<<T as Config>::RuntimeCall>"
+"value"
+:
+[
+2 items
+0
+:
+{
+4 items
+"call_index":"3301"
+"call_module":"MythProxy"
+"call_name":"proxy"
+"params"
+:
+[
+2 items
+0
+:
+{
+3 items
+"name":"address"
+"type":"H160"
+"value":"0xdbe1638c2063432d6923e30d2f4406e2e91e767f"
+}
+1
+:
+{
+3 items
+"name":"call"
+"type":"Call"
+"value"
+:
+{
+4 items
+"call_index":"3201"
+"call_module":"Escrow"
+"call_name":"release"
+"params"
+:
+[
+2 items
+0
+:
+{
+3 items
+"name":"address"
+"type":"H160"
+"value":"0xb92c6636b41a4c8c72c6484770bbb301bd9e02a1"
+}
+1
+:
+{
+3 items
+"name":"value"
+"type":"U128"
+"value":"19400000000000000000"
+}
+]
+}
+}
+]
+}
+1
+:
+{
+4 items
+"call_index":"3301"
+"call_module":"MythProxy"
+"call_name":"proxy"
+"params"
+:
+[
+2 items
+0
+:
+{
+3 items
+"name":"address"
+"type":"H160"
+"value":"0xb1ded2808d4802a1dfcee7917e2d78a8797b427c"
+}
+1
+:
+{
+3 items
+"name":"call"
+"type":"Call"
+"value"
+:
+{
+4 items
+"call_index":"3301"
+"call_module":"MythProxy"
+"call_name":"proxy"
+"params"
+:
+[
+2 items
+0
+:
+{
+3 items
+"name":"address"
+"type":"H160"
+"value":"0xb92c6636b41a4c8c72c6484770bbb301bd9e02a1"
+}
+1
+:
+{
+3 items
+"name":"call"
+"type":"Call"
+"value"
+:
+{
+4 items
+"call_index":"0d03"
+"call_module":"Marketplace"
+"call_name":"create_order"
+"params"
+:
+[
+2 items
+0
+:
+{
+3 items
+"name":"order"
+"type":"pallet_marketplace:types:Order"
+"value"
+:
+{
+8 items
+"collection":"3486"
+"escrow_agent":NULL
+"expires_at":1758263767000
+"fee":"0"
+"item":"60970"
+"order_type":"Bid"
+"price":"19400000000000000000"
+"signature_data"
+:
+{
+2 items
+"nonce":"create-bid_0ef13953-4738-486d-9ffd-5258142a1c5b"
+"signature":"0x3a4732444c5d85be3f45b7f49752bb72f4269aa992b32855889d67e23af0f848086af41003ee58856451b0b84ffe0912b28c514443a44db3bb65e401c1e76ee01b"
+}
+}
+}
+1
+:
+{
+3 items
+"name":"execution"
+"type":"pallet_marketplace:types:Execution"
+"value":"Force"
+}
+]
+}
+}
+]
+}
+}
+]
+}
+]
+}
+]
