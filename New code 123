@@ -1,0 +1,68 @@
+const { expect } = require("chai");
+const { ethers } = require("hardhat");
+
+describe("Reentrancy demo", function () {
+  let deployer, attackerSigner, user;
+
+  beforeEach(async function () {
+    [deployer, attackerSigner, user] = await ethers.getSigners();
+  });
+
+  it("VulnerableVault: attacker can drain funds via reentrancy", async function () {
+    // Deploy vulnerable vault
+    const Vault = await ethers.getContractFactory("VulnerableVault", deployer);
+    const vault = await Vault.deploy();
+    await vault.deployed();
+
+    // user deposits 5 ETH
+    await vault.connect(user).deposit({ value: ethers.parseEther("5") });
+
+    // Deploy attacker contract
+    const Attacker = await ethers.getContractFactory("Attacker", attackerSigner);
+    const attacker = await Attacker.deploy(vault.address);
+    await attacker.deployed();
+
+    // check initial vault balance
+    const beforeVaultBalance = await ethers.provider.getBalance(vault.address);
+    expect(beforeVaultBalance).to.equal(ethers.parseEther("5"));
+
+    // Attacker performs attack: seed with 1 ETH and allow many iterations
+    await attacker.connect(attackerSigner).attack(20, { value: ethers.parseEther("1") });
+
+    // After attack, vault should be drained (or mostly drained)
+    const afterVaultBalance = await ethers.provider.getBalance(vault.address);
+    const attackerContractBalance = await ethers.provider.getBalance(attacker.address);
+
+    // vault balance should be zero (or extremely small), attacker contract may have some balance
+    expect(afterVaultBalance).to.be.lte(ethers.parseEther("0.001")); // allow dust
+    expect(attackerContractBalance).to.be.greaterThan(ethers.parseEther("0"));
+  });
+
+  it("SecureVault: attacker fails against reentrancy guard / checks-effects-interactions", async function () {
+    // Deploy secure vault
+    const SecureVault = await ethers.getContractFactory("SecureVault", deployer);
+    const secureVault = await SecureVault.deploy();
+    await secureVault.deployed();
+
+    // user deposits 5 ETH
+    await secureVault.connect(user).deposit({ value: ethers.parseEther("5") });
+
+    // Deploy attacker contract pointing at secure vault
+    const Attacker = await ethers.getContractFactory("Attacker", attackerSigner);
+    const attacker = await Attacker.deploy(secureVault.address);
+    await attacker.deployed();
+
+    const beforeVaultBalance = await ethers.provider.getBalance(secureVault.address);
+    expect(beforeVaultBalance).to.equal(ethers.parseEther("5"));
+
+    // Attacker attempts attack: should revert or fail to drain
+    await expect(
+      attacker.connect(attackerSigner).attack(20, { value: ethers.parseEther("1") })
+    ).to.be.reverted; // attack will fail due to nonReentrant or because withdraw won't reenter
+
+    // ensure vault still has funds
+    const afterVaultBalance = await ethers.provider.getBalance(secureVault.address);
+    expect(afterVaultBalance).to.equal(ethers.parseEther("5"));
+  });
+});
+7
